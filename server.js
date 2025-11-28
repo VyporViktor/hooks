@@ -77,6 +77,34 @@ function saveData(dataArray) {
   }
 }
 
+// API маршруты - определяем в самом начале, до всех остальных
+// Тестовый endpoint для проверки работоспособности API
+app.get('/api/test', (req, res) => {
+  res.json({ status: 'ok', message: 'API работает', timestamp: new Date().toISOString() });
+});
+
+// API endpoint для получения данных
+app.get('/api/data', (req, res) => {
+  try {
+    console.log(`[API] Запрос данных: ${req.method} ${req.path}`);
+    console.log(`[API] Полный URL: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+    console.log(`[API] Проверка файла ${DATA_FILE}`);
+    console.log(`[API] Директория существует: ${fs.existsSync(DATA_DIR)}`);
+    console.log(`[API] Файл существует: ${fs.existsSync(DATA_FILE)}`);
+    
+    const data = readData();
+    console.log(`[API] Данные успешно загружены, количество записей: ${data.length}`);
+    res.json(data);
+  } catch (error) {
+    console.error('[API] Ошибка при получении данных через API:', error);
+    console.error('[API] Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Ошибка при загрузке данных',
+      message: error.message 
+    });
+  }
+});
+
 // Webhook endpoint
 app.post('/webhook', (req, res) => {
   console.log('Получен webhook:', JSON.stringify(req.body, null, 2));
@@ -107,28 +135,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// API endpoint для получения данных
-app.get('/api/data', (req, res) => {
-  try {
-    console.log(`Запрос данных: проверка файла ${DATA_FILE}`);
-    console.log(`Директория существует: ${fs.existsSync(DATA_DIR)}`);
-    console.log(`Файл существует: ${fs.existsSync(DATA_FILE)}`);
-    
-    const data = readData();
-    console.log(`Данные успешно загружены, количество записей: ${data.length}`);
-    res.json(data);
-  } catch (error) {
-    console.error('Ошибка при получении данных через API:', error);
-    console.error('Stack trace:', error.stack);
-    res.status(500).json({ 
-      error: 'Ошибка при загрузке данных',
-      message: error.message 
-    });
-  }
-});
-
 // Блокируем доступ к директории data (но не к /api/data)
-app.get('/data*', (req, res) => {
+// Используем более точный паттерн, чтобы не перехватывать /api/data
+app.get(/^\/data\/.*/, (req, res) => {
+  console.log(`[BLOCKED] Попытка доступа к ${req.path}`);
   res.status(403).json({ error: 'Access denied' });
 });
 
@@ -143,8 +153,20 @@ app.get('/script.js', (req, res) => {
 
 // Обработка ошибок 404
 app.use((req, res) => {
-  console.warn(`404 - Страница не найдена: ${req.method} ${req.path}`);
-  res.status(404).json({ error: 'Not found' });
+  console.warn(`[404] Страница не найдена: ${req.method} ${req.path}`);
+  console.warn(`[404] Полный URL: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+  console.warn(`[404] Query:`, req.query);
+  
+  // Если это запрос к API, возвращаем JSON
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ 
+      error: 'Not found',
+      path: req.path,
+      method: req.method 
+    });
+  } else {
+    res.status(404).json({ error: 'Not found' });
+  }
 });
 
 // Обработка всех необработанных ошибок
