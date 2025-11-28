@@ -1,0 +1,16 @@
+{
+  "name": "tradingview-webhooks",
+  "version": "1.0.0",
+  "description": "Webhook receiver for TradingView alerts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["webhook", "tradingview"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+
