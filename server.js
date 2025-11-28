@@ -10,6 +10,12 @@ const DATA_FILE = path.join(DATA_DIR, 'webhooks_data.json');
 // Middleware для парсинга JSON
 app.use(express.json());
 
+// Middleware для логирования запросов
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
 // Создаем директорию для данных, если её нет
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -23,10 +29,41 @@ if (!fs.existsSync(DATA_FILE)) {
 // Функция для чтения данных из файла
 function readData() {
   try {
-    const data = fs.readFileSync(DATA_FILE, 'utf8');
-    return JSON.parse(data);
+    // Проверяем существование файла
+    if (!fs.existsSync(DATA_FILE)) {
+      console.warn('Файл данных не найден, создаем новый');
+      // Создаем директорию, если её нет
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      // Создаем пустой файл
+      fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2));
+      return [];
+    }
+    
+    const fileContent = fs.readFileSync(DATA_FILE, 'utf8');
+    
+    // Проверяем, что файл не пустой
+    if (!fileContent || fileContent.trim() === '') {
+      console.warn('Файл данных пуст, возвращаем пустой массив');
+      return [];
+    }
+    
+    const data = JSON.parse(fileContent);
+    
+    // Проверяем, что данные - это массив
+    if (!Array.isArray(data)) {
+      console.error('Данные в файле не являются массивом, возвращаем пустой массив');
+      return [];
+    }
+    
+    return data;
   } catch (error) {
     console.error('Ошибка при чтении файла:', error);
+    // При ошибке парсинга JSON, возвращаем пустой массив, но логируем ошибку
+    if (error instanceof SyntaxError) {
+      console.error('Ошибка парсинга JSON. Файл может быть поврежден.');
+    }
     return [];
   }
 }
@@ -72,12 +109,26 @@ app.get('/', (req, res) => {
 
 // API endpoint для получения данных
 app.get('/api/data', (req, res) => {
-  const data = readData();
-  res.json(data);
+  try {
+    console.log(`Запрос данных: проверка файла ${DATA_FILE}`);
+    console.log(`Директория существует: ${fs.existsSync(DATA_DIR)}`);
+    console.log(`Файл существует: ${fs.existsSync(DATA_FILE)}`);
+    
+    const data = readData();
+    console.log(`Данные успешно загружены, количество записей: ${data.length}`);
+    res.json(data);
+  } catch (error) {
+    console.error('Ошибка при получении данных через API:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Ошибка при загрузке данных',
+      message: error.message 
+    });
+  }
 });
 
-// Блокируем доступ к директории data
-app.use('/data', (req, res) => {
+// Блокируем доступ к директории data (но не к /api/data)
+app.get('/data*', (req, res) => {
   res.status(403).json({ error: 'Access denied' });
 });
 
@@ -88,6 +139,21 @@ app.get('/styles.css', (req, res) => {
 
 app.get('/script.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'script.js'));
+});
+
+// Обработка ошибок 404
+app.use((req, res) => {
+  console.warn(`404 - Страница не найдена: ${req.method} ${req.path}`);
+  res.status(404).json({ error: 'Not found' });
+});
+
+// Обработка всех необработанных ошибок
+app.use((err, req, res, next) => {
+  console.error('Необработанная ошибка:', err);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: err.message 
+  });
 });
 
 app.listen(PORT, () => {

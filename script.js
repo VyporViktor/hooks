@@ -3,14 +3,29 @@ let autoRefreshInterval = null;
 async function loadData() {
     try {
         const response = await fetch('/api/data');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        
+        // Проверяем, что данные - это массив
+        if (!Array.isArray(data)) {
+            throw new Error('Неверный формат данных');
+        }
         
         updateStats(data);
         renderTable(data);
     } catch (error) {
         console.error('Ошибка при загрузке данных:', error);
+        const errorMessage = error.message || 'Неизвестная ошибка';
         document.getElementById('tableContainer').innerHTML = 
-            '<div class="empty-state"><p>Ошибка при загрузке данных. Попробуйте обновить страницу.</p></div>';
+            `<div class="empty-state">
+                <p>Ошибка при загрузке данных</p>
+                <p style="margin-top: 10px; font-size: 0.85em; color: #e74c3c;">${errorMessage}</p>
+                <p style="margin-top: 10px; font-size: 0.9em;">Попробуйте обновить страницу.</p>
+            </div>`;
     }
 }
 
